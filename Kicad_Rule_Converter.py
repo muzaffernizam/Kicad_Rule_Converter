@@ -210,10 +210,9 @@ class RuleManagerPlugin(pcbnew.ActionPlugin):
                     try:
                         with open(filepath, 'r', encoding=enc) as f:
                             return f.read()
-                    except Exception:  # UnicodeError dahil TÜM hataları yakalar ve çökmeyi önler!
+                    except Exception:  
                         continue
                 
-                # Hiçbiri tutmazsa son çare: Hatalı karakterleri yoksayarak UTF-8 aç
                 with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                     return f.read()
 
@@ -310,19 +309,58 @@ class RuleManagerPlugin(pcbnew.ActionPlugin):
                 except:
                     return "0.250mm"
 
+            # --- ESKİ FONKSİYON (Silinmemesi istendiği için yoruma alındı) ---
+            # def extract_kicad_condition(self, altium_scope):
+            #     if altium_scope == "All": return None
+            #     
+            #     match = re.search(r"InNetClass\('([^']+)'\)", altium_scope)
+            #     if match: return f"A.NetClass == '{match.group(1)}' || B.NetClass == '{match.group(1)}'"
+            #         
+            #     match = re.search(r"InDifferentialPairClass\('([^']+)'\)", altium_scope)
+            #     if match: return f"A.NetClass == '{match.group(1)}' || B.NetClass == '{match.group(1)}'"
+            #         
+            #     match = re.search(r"Net\('([^']+)'\)", altium_scope)
+            #     if match: return f"A.NetName == '{match.group(1)}'"
+            #         
+            #     return None
+
+            # --- YENİ VE GELİŞMİŞ FONKSİYON ---
             def extract_kicad_condition(self, altium_scope):
-                if altium_scope == "All": return None
+                if not altium_scope or altium_scope.strip().lower() == "all":
+                    return None
                 
-                match = re.search(r"InNetClass\('([^']+)'\)", altium_scope)
-                if match: return f"A.NetClass == '{match.group(1)}' || B.NetClass == '{match.group(1)}'"
-                    
-                match = re.search(r"InDifferentialPairClass\('([^']+)'\)", altium_scope)
-                if match: return f"A.NetClass == '{match.group(1)}' || B.NetClass == '{match.group(1)}'"
-                    
-                match = re.search(r"Net\('([^']+)'\)", altium_scope)
-                if match: return f"A.NetName == '{match.group(1)}'"
-                    
-                return None
+                cond = altium_scope
+                
+                # 1. Mantıksal Operatörleri Çevir (Büyük/küçük harf duyarsız)
+                cond = re.sub(r'(?i)\bAND\b', '&&', cond)
+                cond = re.sub(r'(?i)\bOR\b', '||', cond)
+                cond = re.sub(r'(?i)\bNOT\b', '!', cond)
+                
+                # 2. Obje Tiplerini Çevir (Via, Track, Pad, Polygon)
+                cond = re.sub(r'(?i)\bIsVia\b', "(A.Type == 'Via')", cond)
+                cond = re.sub(r'(?i)\bIsTrack\b', "(A.Type == 'Track')", cond)
+                cond = re.sub(r'(?i)\bIsPad\b', "(A.Type == 'Pad')", cond)
+                cond = re.sub(r'(?i)\bIsPolygon\b|\bIsRegion\b', "(A.Type == 'Zone')", cond)
+                
+                # 3. Katman (Layer) İsimlerini KiCad Formatına Çevir
+                def layer_replacer(match):
+                    layer_name = match.group(1).lower()
+                    if layer_name == "toplayer": return "(A.Layer == 'F.Cu')"
+                    if layer_name == "bottomlayer": return "(A.Layer == 'B.Cu')"
+                    # İç katmanlar için genel bir çeviri (kullanıcının KiCad'de doğrulaması önerilir)
+                    return f"(A.Layer == '{match.group(1)}')"
+
+                cond = re.sub(r'(?i)OnLayer\(\'([^\']+)\'\)', layer_replacer, cond)
+                
+                # 4. Net, NetClass ve DiffPair Sınıflarını Çevir
+                cond = re.sub(r'(?i)InNetClass\(\'([^\']+)\'\)', r"(A.NetClass == '\1' || B.NetClass == '\1')", cond)
+                cond = re.sub(r'(?i)InDifferentialPairClass\(\'([^\']+)\'\)', r"(A.NetClass == '\1' || B.NetClass == '\1')", cond)
+                cond = re.sub(r'(?i)InNet\(\'([^\']+)\'\)|Net\(\'([^\']+)\'\)', r"(A.NetName == '\1' || B.NetName == '\1')", cond)
+                
+                # 5. Komponent / Footprint Çevirisi
+                cond = re.sub(r'(?i)HasFootprint\(\'([^\']+)\'\)', r"(A.Footprint == '\1')", cond)
+                
+                return cond
 
         board = pcbnew.GetBoard()
         board_path = board.GetFileName()
@@ -331,6 +369,5 @@ class RuleManagerPlugin(pcbnew.ActionPlugin):
         dialog = RuleManagerDialog(None, board_dir)
         dialog.ShowModal()
         dialog.Destroy()
-
 
 RuleManagerPlugin().register()
