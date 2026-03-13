@@ -5,7 +5,7 @@ import inspect
 
 class RuleManagerPlugin(pcbnew.ActionPlugin):
     def defaults(self):
-        self.name = "Kicad Rule Converter V1.0"
+        self.name = "Kicad Rule Converter v1.0"
         self.category = "Utility"
         self.description = "Altium RUL converter and KiCad rule transfer (Designed by Muzaffer Nizam)"
         self.show_toolbar_button = True 
@@ -27,7 +27,7 @@ class RuleManagerPlugin(pcbnew.ActionPlugin):
 
         class RuleManagerDialog(wx.Dialog):
             def __init__(self, parent, current_board_dir):
-                super().__init__(parent, title="KiCad Rule Converter V1.0", size=(720, 550), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+                super().__init__(parent, title="KiCad Rule Converter v1.0", size=(720, 550), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
                 self.current_board_dir = current_board_dir
                 self.unconverted_data = [] 
                 self.InitUI()
@@ -331,5 +331,6 @@ class RuleManagerPlugin(pcbnew.ActionPlugin):
         dialog = RuleManagerDialog(None, board_dir)
         dialog.ShowModal()
         dialog.Destroy()
+
 
 RuleManagerPlugin().register()
